@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "306355961206",
+    "project_id": "fasum-app-aedff",
+    "storage_bucket": "fasum-app-aedff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:306355961206:android:625fd3b4d5282ecfd20e57",
+        "android_client_info": {
+          "package_name": "com.example.daftar_belanja"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUbw1vzEYsukxPK2IGvpkwOOG7nfWA9W0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:306355961206:android:5ba7fd37d50cfee2d20e57",
+        "android_client_info": {
+          "package_name": "com.example.fasum_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUbw1vzEYsukxPK2IGvpkwOOG7nfWA9W0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
