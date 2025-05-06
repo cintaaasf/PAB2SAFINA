@@ -1,10 +1,9 @@
 import 'dart:convert';
-import 'dart:ffi';
 import 'dart:io';
+import 'dart:ui';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
@@ -13,8 +12,6 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shimmer/shimmer.dart';
 
 class AddPostScreen extends StatefulWidget {
-  const AddPostScreen({super.key});
-
   @override
   State<AddPostScreen> createState() => _AddPostScreenState();
 }
@@ -64,7 +61,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
           _descriptionController.clear();
         });
         await _compressAndEncodeImage();
-        // await _generateDescriptionWithAI();
+        await _generateDescriptionWithAI();
       }
     } catch (e) {
       if (mounted) {
@@ -75,13 +72,74 @@ class _AddPostScreenState extends State<AddPostScreen> {
     }
   }
 
+  Future<void> _generateDescriptionWithAI() async {
+    if (_image == null) return;
+    setState(() => _isGenerating = true);
+    try {
+      final model = GenerativeModel(
+        apiKey: 'AIzaSyBVG3xTeqUwj0lC-lih6dI5YekOJIKCdvg',
+        model: 'gemini-1.5-pro',
+      );
+
+      final imageBytes = await _image!.readAsBytes();
+      final content = Content.multi([
+        DataPart('image/jpeg', imageBytes),
+        TextPart(
+          'Berdasarkan foto ini, identifikasi satu kategori utama kerusakan fasilitas umum'
+          'dari daftar berikut: Jalan Rusak, Marka Pudar, Lampu mati, Trotoar rusak, '
+          'Rambu rusak, Jembatan Rusak, Saluran air tersumbat, Sampah menumpuk, Sungai Tercemar '
+          'Vandalisme, Banjir, dan lainnya.'
+          'Pilih kategori yang paling dominan atau paling mendesak untuk dilaporkan'
+          'Buat deskripsi singkat untuk laporan perbaikan, dan tambahkan permohonan perbaikan.'
+          'Fokus pada kerusakan yang terlihat dan hindari spekulasi.\n\n'
+          'Format output yang diinginkan:\n'
+          'Kategori: [satu kategori yang dipilih]\n'
+          'Deskripsi: [deskripsi singkat]',
+        ),
+      ]);
+
+      final response = await model.generateContent([content]);
+      final aiText = response.text;
+      print('AI TEXT: $aiText');
+
+      if (aiText != null && aiText.isNotEmpty) {
+        final lines = aiText.split('\n');
+        String? category;
+        String? description;
+
+        for (var line in lines) {
+          final lower = line.toLowerCase();
+          if (lower.startsWith('kategori:')) {
+            category = line.substring(9).trim();
+          } else if (lower.startsWith('deskripsi:')) {
+            description = line.substring(10).trim();
+          } else if (lower.startsWith('Keterangan')) {
+            description = line.substring(11).trim();
+          }
+        }
+
+        description ??= aiText.trim();
+
+        setState(() {
+          _aiCategory = category ?? 'Tidak diketahui';
+          _aiDescription = description;
+          _descriptionController.text = _aiDescription!;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to generate description: $e');
+    } finally {
+      if (mounted) setState(() => _isGenerating = false);
+    }
+  }
+
   Future<void> _getLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      throw Exception('Location services are disabled.');
+      throw Exception('Location services are disabled');
     }
 
     permission = await Geolocator.checkPermission();
@@ -89,18 +147,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.deniedForever ||
           permission == LocationPermission.denied) {
-        throw Exception('Location permissions are denied');
+        throw Exception('Location permissions are denied.');
       }
+
       try {
-        final Position = await Geolocator.getCurrentPosition(
-          locationSettings: LocationSettings(accuracy: LocationAccuracy.high),
-        ).timeout(const Duration(seconds: 10));
+        final position = await Geolocator.getCurrentPosition(
+                // locationSettings: LocationSettings(accuracy: LocationAccuracy.high),
+                )
+            .timeout(const Duration(seconds: 10));
         setState(() {
-          _latitude = Position.latitude;
-          _longtitude = Position.longitude;
+          _latitude = position.latitude;
+          _longtitude = position.longitude;
         });
       } catch (e) {
-        debugPrint('gagal mendaptkan lokasi: $e');
+        debugPrint('Gagal mendapatkan lokasi: $e');
         setState(() {
           _latitude = null;
           _longtitude = null;
@@ -113,6 +173,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (_base64Image == null || _descriptionController.text.isEmpty) return;
 
     setState(() => _isUploading = true);
+
     final now = DateTime.now().toIso8601String();
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
@@ -123,24 +184,27 @@ class _AddPostScreenState extends State<AddPostScreen> {
       );
       return;
     }
+
     try {
       await _getLocation();
 
-      //ambil nama lengkap dari koleksi users
+      //ambil nama lengkap dari koleksi user
       final userDoc =
-          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+          await FirebaseFirestore.instance.collection('user').doc(uid).get();
       final fullName = userDoc.data()?['fullName'] ?? 'Tanpa Nama';
-      await FirebaseFirestore.instance.collection('posts').add({
+      await FirebaseFirestore.instance.collection('post').add({
         'image': _base64Image,
         'description': _descriptionController.text,
         'createAt': now,
         'latitude': _latitude,
-        'longitude': _longtitude,
-        'fullName': fullName, // <-- ta,bahkan ini
-        'userId': uid, //Optional
+        'longtitude': _longtitude,
+        'fullName': fullName, // <--- tambahkan ini
+        'userID': uid, // optional : jika ingin simpan UID juga
       });
+      if (!mounted) return;
+      Navigator.pop(context);
     } catch (e) {
-      debugPrint('Upload failed : $e');
+      debugPrint('Upload failed: $e');
       if (!mounted) return;
       setState(() => _isUploading = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -194,12 +258,23 @@ class _AddPostScreenState extends State<AddPostScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Image.file(
-              _image!,
-              height: 250,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
+            _image != null
+                ? Image.file(
+                    _image!,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  )
+                : GestureDetector(
+                    onTap: _showImageSourceDialog,
+                    child: Container(
+                      height: 200,
+                      color: Colors.grey[300],
+                      child: Center(
+                        child: Icon(Icons.add_a_photo, size: 50),
+                      ),
+                    ),
+                  ),
             SizedBox(
               height: 10,
             ),
